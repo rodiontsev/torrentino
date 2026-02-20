@@ -1,0 +1,11 @@
+{
+  "telegram": {
+    "token": "<Telegram API Token>"
+  },
+  "transmission": {
+    "rpc": "<Transmission URL>"
+  },
+  "torrentino": {
+    "admins": []
+  }
+}
