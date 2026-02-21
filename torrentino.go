@@ -66,7 +66,7 @@ var (
 	conversations sync.Map
 	magnetLinkRx  = regexp.MustCompile(`^magnet:\?(.+)?`)
 	torrentLinkRx = regexp.MustCompile(`^https?://(.+)?`)
-)
+	)
 
 const (
 	EmojiAlienMonster             string = "👾"
@@ -155,7 +155,7 @@ func updateTorrentStatus(bot *tele.Bot, tr *tr.TransmissionClient) {
 					})
 				if err != nil {
 					if errors.Is(err, tele.ErrSameMessageContent) {
-						log.Printf("Leaving the status message %s in the chat %d unchanged ",
+						log.Printf("Leaving the status message %s in the chat %d unchanged",
 							conversation.StatusMessage.MessageID, conversation.StatusMessage.ChatID)
 					} else {
 						log.Printf("An error occurred while updating the status message %s in the chat %d: %v",
@@ -164,7 +164,7 @@ func updateTorrentStatus(bot *tele.Bot, tr *tr.TransmissionClient) {
 				}
 
 				if torrent.LeftUntilDone == 0 {
-					if bot.React(messageRef, messageRef, tele.Reactions{
+					if err := bot.React(messageRef, messageRef, tele.Reactions{
 						Reactions: []tele.Reaction{
 							{
 								Type:  tele.ReactionTypeEmoji,
@@ -172,7 +172,7 @@ func updateTorrentStatus(bot *tele.Bot, tr *tr.TransmissionClient) {
 							},
 						},
 						Big: true,
-					}) != nil {
+					}); err != nil {
 						log.Printf("An error occurred while updating the status message %s in the chat %d: %v",
 							conversation.StatusMessage.MessageID, conversation.StatusMessage.ChatID, err)
 					}
@@ -297,7 +297,7 @@ func main() {
 
 		emoji := shuffle.Next()
 
-		if bot.React(ctx.Recipient(), ctx.Message(), tele.Reactions{
+		if err := bot.React(ctx.Recipient(), ctx.Message(), tele.Reactions{
 			Reactions: []tele.Reaction{
 				{
 					Type:  tele.ReactionTypeEmoji,
@@ -305,7 +305,7 @@ func main() {
 				},
 			},
 			Big: true,
-		}) != nil {
+		}); err != nil {
 			//fall back to the message
 			messageId, chatId := ctx.Message().MessageSig()
 
@@ -351,7 +351,7 @@ func main() {
 
 		conversations.Store(messageRef, conversation)
 
-		if bot.React(ctx.Recipient(), ctx.Message(), tele.Reactions{
+		if err := bot.React(ctx.Recipient(), ctx.Message(), tele.Reactions{
 			Reactions: []tele.Reaction{
 				{
 					Type:  tele.ReactionTypeEmoji,
@@ -359,7 +359,7 @@ func main() {
 				},
 			},
 			Big: true,
-		}) != nil {
+		}); err != nil {
 			//fall back to the message
 			log.Printf("Could not react to the status message %s in the chat %d: %v",
 				messageId, chatId, err)
@@ -390,11 +390,11 @@ func main() {
 		return addMagnetLinkHandler(ctx, magnetLink)
 	})
 	admin.Handle(tele.OnText, func(ctx tele.Context) error {
-		//magnet link
+//magnet link
 		match := magnetLinkRx.MatchString(ctx.Text())
 		if match {
-			return addMagnetLinkHandler(ctx, ctx.Text())
-		}
+		return addMagnetLinkHandler(ctx, ctx.Text())
+}
 
 		return bot.React(ctx.Recipient(), ctx.Message(), tele.Reactions{
 			Reactions: []tele.Reaction{
