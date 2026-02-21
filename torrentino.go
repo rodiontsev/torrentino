@@ -66,7 +66,8 @@ var (
 	conversations sync.Map
 	magnetLinkRx  = regexp.MustCompile(`^magnet:\?(.+)?`)
 	torrentLinkRx = regexp.MustCompile(`^https?://(.+)?`)
-	)
+	hashLinkRx    = regexp.MustCompile(`^\w{40}$`)
+)
 
 const (
 	EmojiAlienMonster             string = "👾"
@@ -319,7 +320,10 @@ func main() {
 	}
 
 	addMagnetLinkHandler := func(ctx tele.Context, magnetLink string) error {
-		match := magnetLinkRx.MatchString(magnetLink) || torrentLinkRx.MatchString(magnetLink)
+		match := magnetLinkRx.MatchString(magnetLink) ||
+			torrentLinkRx.MatchString(magnetLink) ||
+			hashLinkRx.MatchString(magnetLink)
+
 		if !match {
 			return bot.React(ctx.Recipient(), ctx.Message(), tele.Reactions{
 				Reactions: []tele.Reaction{
@@ -390,21 +394,7 @@ func main() {
 		return addMagnetLinkHandler(ctx, magnetLink)
 	})
 	admin.Handle(tele.OnText, func(ctx tele.Context) error {
-//magnet link
-		match := magnetLinkRx.MatchString(ctx.Text())
-		if match {
 		return addMagnetLinkHandler(ctx, ctx.Text())
-}
-
-		return bot.React(ctx.Recipient(), ctx.Message(), tele.Reactions{
-			Reactions: []tele.Reaction{
-				{
-					Type:  tele.ReactionTypeEmoji,
-					Emoji: EmojiFaceWithRaisedEyebrow,
-				},
-			},
-			Big: true,
-		})
 	})
 
 	go updateTorrentStatus(bot, tr)
