@@ -1,8 +1,6 @@
 package main
 
 import (
-	_ "embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -21,27 +19,18 @@ import (
 	middleware "gopkg.in/telebot.v4/middleware"
 )
 
-//config
-
-//go:embed torrentino.json
-var configData []byte // or string
-
 type TelegramConfig struct {
-	Token string `json:"token"`
+	ApiToken string
+	AdminID  int64
 }
 
 type TransmissionConfig struct {
-	URL string `json:"rpc"`
-}
-
-type TorrentinoConfig struct {
-	Admins []int64 `json:"admins"`
+	URL string
 }
 
 type Config struct {
-	Telegram     *TelegramConfig     `json:"telegram"`
-	Transmission *TransmissionConfig `json:"transmission"`
-	Torrentino   *TorrentinoConfig   `json:"torrentino"`
+	Telegram     *TelegramConfig
+	Transmission *TransmissionConfig
 }
 
 type MessageRef struct {
@@ -231,53 +220,71 @@ func updateTorrentStatus(bot *tele.Bot, tr *tr.TransmissionClient) {
 	}
 }
 
+func config() (*Config, error) {
+	readFile := func(envKey string) (string, error) {
+		path := os.Getenv(envKey)
+		if path == "" {
+			return "", fmt.Errorf("%s environment variable is not set", envKey)
+		}
+
+		value, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to read file %s: %w", path, err)
+		}
+
+		content := strings.TrimSpace(string(value))
+		if content == "" {
+			return "", fmt.Errorf("file %s is empty", path)
+		}
+
+		return content, nil
+	}
+
+	adminIdStr, err := readFile("TELEGRAM_ADMIN_ID_FILE")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load Telegram Admin ID: %w", err)
+	}
+
+	adminId, err := strconv.ParseInt(adminIdStr, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Telegram Admin ID: %w", err)
+	}
+
+	apiToken, err := readFile("TELEGRAM_API_TOKEN_FILE")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load Telegram API token: %w", err)
+	}
+
+	url := strings.TrimSpace(os.Getenv("TRANSMISSION_URL"))
+	if url == "" {
+		return nil, fmt.Errorf("TRANSMISSION_URL environment variable is not set")
+	}
+
+	return &Config{
+		Telegram: &TelegramConfig{
+			AdminID:  adminId,
+			ApiToken: apiToken,
+		},
+		Transmission: &TransmissionConfig{
+			URL: url,
+		},
+	}, nil
+}
+
 func main() {
 	log.Printf("It's-a-me, Torrentino!")
 
-	//config
-	var cfg Config
-	if err := json.Unmarshal(configData, &cfg); err != nil {
-		log.Panic(err)
+	cfg, err := config()
+	if err != nil {
+		log.Fatalf("Configuration error: %v", err)
 	}
-
-	//config override
-	if token := os.Getenv("TELEGRAM_API_TOKEN"); len(token) > 0 {
-		log.Printf("Overriding the default Telegram token")
-		cfg.Telegram.Token = token
-	}
-
-	if url := os.Getenv("TRANSMISSION_URL"); len(url) > 0 {
-		log.Printf("Overriding the default Transmission URL")
-		cfg.Transmission.URL = url
-	}
-
-	admins := func(s string) []int64 {
-		parts := strings.Split(s, ",")
-
-		var result []int64
-
-		for _, p := range parts {
-			if n, err := strconv.ParseInt(strings.TrimSpace(p), 10, 64); err == nil {
-				result = append(result, n)
-			}
-		}
-
-		return result
-
-	}(os.Getenv("TORRENTINO_ADMINS"))
-
-	if len(admins) > 0 {
-		log.Printf("Overriding the default list of administrators")
-		cfg.Torrentino.Admins = admins
-	}
-	//end override
 
 	tr := tr.CreateTransmissionClient(cfg.Transmission.URL)
 	shuffle := shuffle.CreateShuffle(Emojis)
 
 	//start
 	settings := tele.Settings{
-		Token:  cfg.Telegram.Token,
+		Token:  cfg.Telegram.ApiToken,
 		Poller: &tele.LongPoller{Timeout: 20 * time.Second},
 	}
 
@@ -382,7 +389,7 @@ func main() {
 	bot.Handle("/hello", helloHandler)
 
 	admin := bot.Group()
-	admin.Use(middleware.Whitelist(cfg.Torrentino.Admins...))
+	admin.Use(middleware.Whitelist(cfg.Telegram.AdminID))
 	admin.Handle("/add", func(ctx tele.Context) error {
 		args := ctx.Args()
 
